@@ -18,10 +18,25 @@ class DataProcessor:
             return False
 
         print(f"Found {len(txt_files)} TXT files to process")
+        print("Processing files in order:", txt_files)  # Debug: Show file processing order
         
         # First pass: Collect all data by invoice number
         for txt_file in txt_files:
             self._collect_invoice_data(txt_file)
+        
+        # Debug: Print collected invoice data summary
+        print("\nCollected Invoice Data Summary:")
+        for invoice_no, data in self.invoice_data.items():
+            print(f"\nInvoice {invoice_no}:")
+            print(f"Number of pages: {len(data['pages'])}")
+            print(f"Has totals: {data['has_totals']}")
+            for i, page in enumerate(data['pages']):
+                print(f"  Page {i+1}:")
+                print(f"    Rows: {len(page['rows'])}")
+                print(f"    Has totals: {page['has_totals']}")
+                if page['has_totals']:
+                    print(f"    Totals: {page['totals']}")
+                print(f"    BOL Cube: {page['bol_cube']}")
         
         # Second pass: Process collected data by invoice
         for invoice_no, pages_data in self.invoice_data.items():
