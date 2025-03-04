@@ -2,19 +2,49 @@ import os
 import re
 import csv
 import io
+import uuid
+import shutil
+from datetime import datetime
 from utils import FileUtils  # Removed OpenAI dependency
 
 class DataProcessor:
-    def __init__(self):
-        """Initialize the data processor."""
-        self.script_dir = FileUtils.get_script_dir()
+    def __init__(self, session_id=None):
+        """Initialize the data processor with a session directory."""
+        self.base_dir = FileUtils.get_script_dir()
+        self.session_id = session_id or self._generate_session_id()
+        self.session_dir = os.path.join(self.base_dir, 'processing_sessions', self.session_id)
         self.invoice_data = {}  # Store data for multi-page invoices
+        self._setup_session_directory()
+
+    def _generate_session_id(self):
+        """Generate a unique session ID using timestamp and UUID."""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_id = str(uuid.uuid4())[:8]
+        return f"session_{timestamp}_{unique_id}"
+
+    def _setup_session_directory(self):
+        """Create the session directory if it doesn't exist."""
+        os.makedirs(self.session_dir, exist_ok=True)
+        print(f"Created session directory: {self.session_dir}")
+
+    @staticmethod
+    def cleanup_sessions():
+        """Clean up all processing session directories."""
+        base_dir = FileUtils.get_script_dir()
+        sessions_dir = os.path.join(base_dir, 'processing_sessions')
+        if os.path.exists(sessions_dir):
+            try:
+                shutil.rmtree(sessions_dir)
+                print("Cleaned up all processing sessions")
+            except Exception as e:
+                print(f"Error cleaning up sessions: {str(e)}")
 
     def process_all_files(self):
-        """Process all TXT files in the directory."""
-        txt_files = FileUtils.get_txt_files(self.script_dir)
+        """Process all TXT files in the session directory."""
+        # Get all txt files except requirements.txt
+        txt_files = [f for f in FileUtils.get_txt_files(self.session_dir) if f != 'requirements.txt']
         if not txt_files:
-            print("No TXT files found in the directory")
+            print("No TXT files found in the session directory")
             return False
 
         print(f"Found {len(txt_files)} TXT files to process")
@@ -46,7 +76,7 @@ class DataProcessor:
 
     def _collect_invoice_data(self, txt_file):
         """Collect data from a single TXT file and group by invoice number."""
-        file_path = os.path.join(self.script_dir, txt_file)
+        file_path = os.path.join(self.session_dir, txt_file)
         print(f"Collecting data from {txt_file}...")
         
         try:
@@ -177,7 +207,7 @@ class DataProcessor:
         formatted_data = self._format_csv(all_rows, totals['pieces'], totals['weight'])
         if formatted_data:
             new_filename = f"{invoice_no}.csv"
-            new_file_path = os.path.join(self.script_dir, new_filename)
+            new_file_path = os.path.join(self.session_dir, new_filename)
             
             with open(new_file_path, 'w', encoding='utf-8', newline='') as file:
                 file.write(formatted_data)
@@ -221,17 +251,37 @@ class DataProcessor:
         header[27] = "Assigned Trucking Co."                  # Column AB
         writer.writerow(header)
 
+        # Sort rows by Invoice No. to ensure consistent grouping
+        sorted_rows = sorted(rows, key=lambda x: x[4])  # Sort by Invoice No. (index 4)
+        
+        # Group rows by invoice number
+        current_invoice = None
+        is_first_row = True
+
         # Write data rows
-        for row_data in rows:
+        for row_data in sorted_rows:
             data_row = [""] * 28
+            invoice_no = row_data[4]  # Get current row's invoice number
+            
+            # Check if this is the first row of a new invoice group
+            if invoice_no != current_invoice:
+                current_invoice = invoice_no
+                is_first_row = True
+            
+            # Fill in the standard fields
             data_row[13] = row_data[0]  # Cartons
             data_row[16] = row_data[1]  # BOL Cube
             data_row[20] = row_data[2]  # Individual Pieces
             data_row[22] = row_data[3]  # Individual Weight
             data_row[24] = row_data[4]  # Invoice No.
             data_row[25] = row_data[5]  # Style
-            data_row[21] = total_pieces  # Total Pieces
-            data_row[23] = total_weight  # Total Weight
+            
+            # Only include totals in the first row of each invoice group
+            if is_first_row:
+                data_row[21] = total_pieces  # Total Pieces
+                data_row[23] = total_weight  # Total Weight
+                is_first_row = False
+            
             writer.writerow(data_row)
 
         return output.getvalue()
