@@ -347,6 +347,7 @@ def get_or_create_session():
     else:
         processor = DataProcessor(session_id=session['session_id'])
         print(f"Using existing session: {session['session_id']}")
+        print(f"Using existing session: {session['session_id']}")
     return processor
 
 @app.route('/', methods=['GET'])
