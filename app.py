@@ -23,7 +23,7 @@ app.secret_key = 'your-secret-key-here'  # Required for session management
 ALLOWED_PDF_EXTENSIONS = {'pdf'}
 # Allowed extensions for CSV/XLSX upload
 ALLOWED_CSV_EXTENSIONS = {'csv', 'xlsx', 'xls'}
-
+#test
 # Check if poppler is installed or install it if on Render
 if os.environ.get('RENDER') and platform.system() != 'Windows':
     try:
